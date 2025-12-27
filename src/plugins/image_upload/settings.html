@@ -530,8 +530,8 @@
                                     scaleY: Number(pending.scaleY)||1
                                 });
                             } catch (e) { console.warn('apply pending crop failed', e); }
-                        } else {
-                            cropperInstance.setAspectRatio(800/480)
+                        } else if (deviceSettings.resolution && deviceSettings.resolution.length == 2) {
+                            cropperInstance.setAspectRatio(deviceSettings.resolution[0]/deviceSettings.resolution[1]);
                         }
                         updateCropPreviewSmall();
                     },

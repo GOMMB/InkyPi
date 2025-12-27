@@ -19,6 +19,7 @@
         const loadPluginSettings = pluginInstanceName != '';
         const styleSettings = {{ style_settings | default(false) | tojson }};
         const pluginRefresh = {{ plugin_refresh | tojson if plugin_refresh else {} }};
+        const deviceSettings = {{ device_settings | tojson if device_settings else {} }};
 
         let uploadedFiles = {};
 
