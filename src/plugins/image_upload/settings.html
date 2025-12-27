@@ -476,10 +476,7 @@
 
         cropCurrentIdentifier = identifier;
 
-        // set image src (cache-bust)
         els.imgEl.src = src;
-        if (!src.startsWith('data:'))
-            els.imgEl.src += (els.imgEl.src.indexOf('?') === -1 ? '?_=' : '&_=') + Date.now();
         els.previewImg.src = '';
         els.previewImg.style.display = 'none';
 
