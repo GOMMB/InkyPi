@@ -519,7 +519,8 @@
                     ready: function () {
                         if (pending && pending.width && pending.height) {
                             try {
-                                if (pending.canvasData) cropperInstance.setCanvasData(pending.canvasData);
+                                // Commenting below since it messes up viewing a crop on desktop made by mobile
+                                // if (pending.canvasData) cropperInstance.setCanvasData(pending.canvasData);
                                 var ratio = Number(pending.width) / Number(pending.height);
                                 if (!isNaN(ratio) && isFinite(ratio)) cropperInstance.setAspectRatio(ratio);
                                 cropperInstance.setData({
