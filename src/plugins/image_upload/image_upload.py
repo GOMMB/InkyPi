@@ -29,7 +29,7 @@ class ImageUpload(BasePlugin):
         # Open the image using Pillow
         try:
             # First try to open the image from cache
-            image = Image.open(__get_cache_location(image_locations[img_index]))
+            image = Image.open(self.__get_cache_location(image_locations[img_index]))
             using_cache = True
         except Exception as _:
             # No cached processed image found, open raw image instead
@@ -96,6 +96,6 @@ class ImageUpload(BasePlugin):
         image = resize_image(image, device_config.get_resolution(), [])
 
         # Save to cache
-        image.save(__get_cache_location(image_locations[current_index]))
+        image.save(self.__get_cache_location(image_locations[current_index]))
 
         return image
