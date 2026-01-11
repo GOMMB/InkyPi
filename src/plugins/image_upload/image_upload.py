@@ -5,11 +5,20 @@ import logging
 import random
 import json
 import re
+from pathlib import Path
+from utils.image_utils import resize_image
 
 logger = logging.getLogger(__name__)
 
 
 class ImageUpload(BasePlugin):
+
+    def get_cache_location(full_path):
+        p = Path(full_path)
+        base = path.parent.parent  # This is /usr/local/inkypi/src/static/images
+        # Create the new path by joining the base + cached folder + filename
+        cache_path = base / "cached" / path.name
+        return str(cache_path)
 
     def __safeId(self, value):
         return '' if value == None else re.sub(r'[^a-zA-Z0-9_\-]', '_', re.sub(r'^.*[\\/]', '', value))
@@ -19,11 +28,18 @@ class ImageUpload(BasePlugin):
             raise RuntimeError("No images provided.")
         # Open the image using Pillow
         try:
-            image = Image.open(image_locations[img_index])
-        except Exception as e:
-            logger.error(f"Failed to read image file: {str(e)}")
-            raise RuntimeError("Failed to read image file.")
-        return image
+            # First try to open the image from cache
+            image = Image.open(get_cache_location(image_locations[img_index]))
+            using_cache = True
+        except Exception as _:
+            # No cached processed image found, open raw image instead
+            try:
+                image = Image.open(image_locations[img_index])
+                using_cache = False
+            except Exception as e:    
+                logger.error(f"Failed to read image file: {str(e)}")
+                raise RuntimeError("Failed to read image file.")
+        return image, using_cache
         
 
     def generate_image(self, settings, device_config) -> Image:
@@ -39,11 +55,14 @@ class ImageUpload(BasePlugin):
         if settings.get('randomize') == "true":
             img_index = random.randrange(0, len(image_locations))
             current_index = img_index
-            image = self.open_image(img_index, image_locations)
+            image, using_cache = self.open_image(img_index, image_locations)
         else:
-            image = self.open_image(img_index, image_locations)
+            image, using_cache = self.open_image(img_index, image_locations)
             current_index = img_index
             img_index = (img_index + 1) % len(image_locations)
+
+        if using_cache:
+            return image
 
         file_id = self.__safeId(image_locations[current_index])
 
@@ -73,4 +92,10 @@ class ImageUpload(BasePlugin):
             padded_img_size = (int(img_height * frame_ratio) if img_width >= img_height else img_width,
                               img_height if img_width >= img_height else int(img_width / frame_ratio))
             return ImageOps.pad(image, padded_img_size, color=background_color, method=Image.Resampling.LANCZOS)
+
+        image = resize_image(image, device_config.get_resolution(), [])
+
+        # Save to cache
+        image.save(get_cache_location(image_locations[current_index]))
+
         return image

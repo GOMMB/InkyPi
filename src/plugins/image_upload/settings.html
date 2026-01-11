@@ -576,6 +576,12 @@
             const inputId = `crop-settings-${safeId(cropCurrentIdentifier)}`;
             const inputEl = document.getElementById(inputId);
             if (inputEl) inputEl.value = JSON.stringify(cropSettings);
+
+            const cacheToDelete = document.getElementById('cache_to_delete');
+            const cacheToDeleteArr = JSON.parse(cacheToDelete.value);
+            cacheToDeleteArr.push(cropCurrentIdentifier);
+            if (cacheToDelete) cacheToDelete.value = JSON.stringify(cacheToDeleteArr);
+            
         } catch (e) {
             console.error('Error applying crop', e);
         } finally {
@@ -662,6 +668,13 @@
             
             // Update the image gallery after loading existing files
             updateImageGallery();
+
+            // Create hidden input to list all existing files updated to tell backend to delete any cached versions
+            const cacheToDelete = document.createElement('input');
+            cacheToDelete.type = 'hidden';
+            cacheToDelete.name = 'cache_to_delete';
+            cacheToDelete.id = 'cache_to_delete';
+            cacheToDelete.value = '[]';
         }
 
         wireCropModalControls();
