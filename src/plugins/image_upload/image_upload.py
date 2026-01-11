@@ -30,6 +30,7 @@ class ImageUpload(BasePlugin):
         try:
             # First try to open the image from cache
             image = Image.open(self.__get_cache_location(image_locations[img_index]))
+            logger.info('Using cached version of image.')
             using_cache = True
         except Exception as _:
             # No cached processed image found, open raw image instead
