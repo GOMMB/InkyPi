@@ -250,14 +250,15 @@
         existingFiles.forEach(filePath => {
             const fileName = filePath.replace(/^.*[\\/]/, '');
             const imageUrl = `/static/images/saved/${fileName}`;
-            createImageItem(imageUrl, fileName, filePath, 'existing');
+            const mayebeCachedImageUrl = `/static/images/cached/${fileName}`;
+            createImageItem(imageUrl, mayebeCachedImageUrl, fileName, filePath, 'existing');
         });
         
         // Display newly added files (using FileReader for preview)
         newFiles.forEach((file, index) => {
             const reader = new FileReader();
             reader.onload = function(e) {
-                createImageItem(e.target.result, file.name, index, 'new');
+                createImageItem(e.target.result, '', file.name, index, 'new');
             };
             reader.readAsDataURL(file);
         });
@@ -265,7 +266,7 @@
         updateSelectionCount();
     }
     
-    function createImageItem(src, name, identifier, type) {
+    function createImageItem(src, maybeCacheSrc, name, identifier, type) {
         const gallery = document.getElementById('imageGallery');
         const item = document.createElement('div');
         item.className = 'image-item';
@@ -276,7 +277,7 @@
         // Basic image + name
         item.innerHTML = `
             <div class="image-checkbox"></div>
-            <img src="${src}" alt="${name}">
+            <img src="${maybeCacheSrc}" alt="${name}" onerror="this.onerror=null; this.src='${src}';">
             <div class="image-name" title="${name}">${name}</div>
         `;
 
