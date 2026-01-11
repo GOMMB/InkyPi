@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ImageUpload(BasePlugin):
 
     def __get_cache_location(self, full_path):
-        p = Path(full_path)
+        path = Path(full_path)
         base = path.parent.parent  # This is /usr/local/inkypi/src/static/images
         # Create the new path by joining the base + cached folder + filename
         cache_path = base / "cached" / path.name
