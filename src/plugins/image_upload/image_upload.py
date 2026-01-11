@@ -62,13 +62,13 @@ class ImageUpload(BasePlugin):
             current_index = img_index
             img_index = (img_index + 1) % len(image_locations)
 
+        # Write the new index back ot the device json
+        settings['image_index'] = img_index
+
         if using_cache:
             return image
 
         file_id = self.__safeId(image_locations[current_index])
-
-        # Write the new index back ot the device json
-        settings['image_index'] = img_index
 
         background_color = ImageColor.getcolor(settings.get('backgroundColor') or (255, 255, 255), "RGB")
 
