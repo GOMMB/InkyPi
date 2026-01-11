@@ -92,7 +92,7 @@ class ImageUpload(BasePlugin):
             img_width, img_height = image.size
             padded_img_size = (int(img_height * frame_ratio) if img_width >= img_height else img_width,
                               img_height if img_width >= img_height else int(img_width / frame_ratio))
-            return ImageOps.pad(image, padded_img_size, color=background_color, method=Image.Resampling.LANCZOS)
+            image = ImageOps.pad(image, padded_img_size, color=background_color, method=Image.Resampling.LANCZOS)
 
         image = resize_image(image, device_config.get_resolution(), [])
 
