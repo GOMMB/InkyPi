@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ImageUpload(BasePlugin):
 
-    def get_cache_location(full_path):
+    def __get_cache_location(self, full_path):
         p = Path(full_path)
         base = path.parent.parent  # This is /usr/local/inkypi/src/static/images
         # Create the new path by joining the base + cached folder + filename
@@ -29,7 +29,7 @@ class ImageUpload(BasePlugin):
         # Open the image using Pillow
         try:
             # First try to open the image from cache
-            image = Image.open(get_cache_location(image_locations[img_index]))
+            image = Image.open(__get_cache_location(image_locations[img_index]))
             using_cache = True
         except Exception as _:
             # No cached processed image found, open raw image instead
@@ -96,6 +96,6 @@ class ImageUpload(BasePlugin):
         image = resize_image(image, device_config.get_resolution(), [])
 
         # Save to cache
-        image.save(get_cache_location(image_locations[current_index]))
+        image.save(__get_cache_location(image_locations[current_index]))
 
         return image
