@@ -11,8 +11,11 @@ plugin_bp = Blueprint("plugin", __name__)
 
 # Removed module-level PLUGINS_DIR - will resolve dynamically in route handlers
 
-def __safeId(self, value):
-    return '' if value == None else re.sub(r'[^a-zA-Z0-9_\-]', '_', re.sub(r'^.*[\\/]', '', value))
+def __attempt_to_remove_file(full_path):
+    try:
+        os.remove(full_path)
+    except OSError as _:
+        pass
 
 @plugin_bp.route('/plugin/<plugin_id>')
 def plugin_page(plugin_id):
@@ -145,13 +148,12 @@ def update_plugin_instance(instance_name):
             if 'cache_to_delete' in plugin_settings:
                 cache_to_delete = json.loads(plugin_settings.pop("cache_to_delete"))
                 for cached_image_name in cache_to_delete:
-                    os.remove(os.path.join(cache_dir, cached_image_name))
+                    __attempt_to_remove_file(os.path.join(cache_dir, cached_image_name))
 
             # If pad option changed, delete all cached images
             if plugin_instance.settings.get("padImage") != plugin_settings.get("padImage"):
                 for cache_file in os.listdir(cache_dir):
-                    os.remove(os.path.join(cache_dir, cache_file))
-        
+                    __attempt_to_remove_file(os.path.join(cache_dir, cache_file))
         plugin_settings.update(handle_request_files(request.files, request.form))
 
         plugin_id = plugin_settings.pop("plugin_id")
