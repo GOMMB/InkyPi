@@ -48,27 +48,28 @@ class ImageUpload(BasePlugin):
         # Get the current index from the device json
         img_index = settings.get("image_index", 0)
         image_locations = settings.get("imageFiles[]")
+        temp_plugin_options = settings.get("temp_plugin_options")
+
+        if temp_plugin_options and temp_plugin_options.get("image_index") is not None:
+            img_index = int(temp_plugin_options.get("image_index"))
+        elif settings.get('randomize') == "true":
+            img_index = random.randrange(0, len(image_locations))
+        else:
+            img_index += 1
 
         if img_index >= len(image_locations):
             # Prevent Index out of range issues when file list has changed
             img_index = 0
 
-        if settings.get('randomize') == "true":
-            img_index = random.randrange(0, len(image_locations))
-            current_index = img_index
-            image, using_cache = self.open_image(img_index, image_locations)
-        else:
-            image, using_cache = self.open_image(img_index, image_locations)
-            current_index = img_index
-            img_index = (img_index + 1) % len(image_locations)
+        image, using_cache = self.open_image(img_index, image_locations)
 
-        # Write the new index back ot the device json
+        # Write the new index back to the device json
         settings['image_index'] = img_index
 
         if using_cache:
             return image
 
-        file_id = self.__safeId(image_locations[current_index])
+        file_id = self.__safeId(image_locations[img_index])
 
         background_color = ImageColor.getcolor(settings.get('backgroundColor') or (255, 255, 255), "RGB")
 

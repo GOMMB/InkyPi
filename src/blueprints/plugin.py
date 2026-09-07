@@ -35,6 +35,7 @@ def plugin_page(plugin_id):
             plugin_instance_name = request.args.get('instance')
             if plugin_instance_name:
                 plugin_instance = playlist_manager.find_plugin(plugin_id, plugin_instance_name)
+                playlist = playlist_manager.find_playlist(plugin_id, plugin_instance_name)
                 if not plugin_instance:
                     return jsonify({"error": f"Plugin instance: {plugin_instance_name} does not exist"}), 500
 
@@ -42,6 +43,7 @@ def plugin_page(plugin_id):
                 template_params["plugin_settings"] = plugin_instance.settings
                 template_params["plugin_instance"] = plugin_instance_name
                 template_params["plugin_refresh"] = plugin_instance.refresh
+                template_params["playlist"] = playlist
 
             template_params["playlists"] = playlist_manager.get_playlist_names()
         except Exception as e:
@@ -206,6 +208,8 @@ def display_plugin_instance():
     plugin_id = data.get("plugin_id")
     plugin_instance_name = data.get("plugin_instance")
 
+    temp_plugin_options = data.get("temp_plugin_options")
+
     try:
         playlist = playlist_manager.get_playlist(playlist_name)
         if not playlist:
@@ -214,6 +218,9 @@ def display_plugin_instance():
         plugin_instance = playlist.find_plugin(plugin_id, plugin_instance_name)
         if not plugin_instance:
             return jsonify({"success": False, "message": f"Plugin instance '{plugin_instance_name}' not found"}), 400
+
+        if temp_plugin_options:
+            plugin_instance.settings['temp_plugin_options'] = temp_plugin_options
 
         refresh_task.manual_update(PlaylistRefresh(playlist, plugin_instance, force=True))
     except Exception as e:

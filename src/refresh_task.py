@@ -308,6 +308,10 @@ class PlaylistRefresh(RefreshAction):
             image = plugin.generate_image(self.plugin_instance.settings, device_config)
             image.save(plugin_image_path)
             self.plugin_instance.latest_refresh_time = current_dt.isoformat()
+
+            # Delete any temp options
+            self.plugin_instance.settings.pop('temp_plugin_options', None)
+
             # Save the config to persist any changes made by the plugin (like image_index updates)
             device_config.write_config()
         else:

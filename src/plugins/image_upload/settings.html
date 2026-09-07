@@ -227,6 +227,39 @@
     // uploadedFiles is used elsewhere in this file; ensure it exists
     window.uploadedFiles = window.uploadedFiles || {};
 
+    async function displayImageNow(imageIdx) {
+        const loadingIndicator = document.getElementById(pluginInstance)?.querySelector('.loading-indicator');
+        loadingIndicator.style.display = 'block';
+        try {
+            const response = await fetch("{{ url_for('plugin.display_plugin_instance') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    playlist_name: '{{ playlist.name }}',
+                    plugin_id: '{{ plugin_instance.plugin_id }}',
+                    plugin_instance: '{{ plugin_instance.name }}',
+                    plugin_options: {'image_index': imageIdx}
+                })
+            });
+            
+            const result = await response.json();
+            if (response.ok) {
+                sessionStorage.setItem("storedMessage", JSON.stringify({ type: "success", text: `Success! ${result.message}` }));
+                location.reload();
+            } else {
+                showResponseModal('failure', `Error!  ${result.error}`);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred while processing your request.');
+        } finally {
+            // Hide loading indicator after the action is complete
+            loadingIndicator.style.display = 'none';
+        }
+    }
+
     // Utility to create safe IDs from file names or identifiers
     function safeId(value) {
         return value === undefined || value === null ? '' : String(value).replace(/[^a-zA-Z0-9_\-]/g, '_');
@@ -247,18 +280,18 @@
         const newFiles = uploadedFiles["imageFiles[]"] || [];
         
         // Display existing files
-        existingFiles.forEach(filePath => {
+        existingFiles.forEach((filePath, index) => {
             const fileName = filePath.replace(/^.*[\\/]/, '');
             const imageUrl = `/static/images/saved/${fileName}`;
             const mayebeCachedImageUrl = `/static/images/cached/${fileName}`;
-            createImageItem(imageUrl, mayebeCachedImageUrl, fileName, filePath, 'existing');
+            createImageItem(imageUrl, mayebeCachedImageUrl, fileName, filePath, 'existing', index);
         });
         
         // Display newly added files (using FileReader for preview)
         newFiles.forEach((file, index) => {
             const reader = new FileReader();
             reader.onload = function(e) {
-                createImageItem(e.target.result, '', file.name, index, 'new');
+                createImageItem(e.target.result, '', file.name, index, 'new', index);
             };
             reader.readAsDataURL(file);
         });
@@ -266,7 +299,7 @@
         updateSelectionCount();
     }
     
-    function createImageItem(src, maybeCacheSrc, name, identifier, type) {
+    function createImageItem(src, maybeCacheSrc, name, identifier, type, index) {
         const gallery = document.getElementById('imageGallery');
         const item = document.createElement('div');
         item.className = 'image-item';
@@ -293,6 +326,22 @@
         cropBtn.dataset.name = name;
 
         controls.appendChild(cropBtn);
+
+        if (type === 'existing') {
+            const displayNowBtn = document.createElement('button');
+            displayNowBtn.type = 'button';
+            displayNowBtn.className = 'set-crop-btn';
+            displayNowBtn.textContent = 'Display Now';
+            displayNowBtn.title = 'Display this image now';
+
+            controls.appendChild(displayNowBtn);
+
+            displayNowBtn.addEventListener('click', function(ev) {
+                ev.stopPropagation();
+                displayImageNow(index)
+            });
+        }
+
         item.appendChild(controls);
 
         // Hidden input for crop settings for this image. Use safe name keys so server receives them.

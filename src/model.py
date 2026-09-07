@@ -89,6 +89,14 @@ class PlaylistManager:
                 return plugin
         return None
 
+    def find_playlist(self, plugin_id, instance):
+        """Searches playlists to find a playlist with a plugin matching the given ID and instance ."""
+        for playlist in self.playlists:
+            plugin = playlist.find_plugin(plugin_id, instance)
+            if plugin:
+                return playlist
+        return None
+
     def determine_active_playlist(self, current_datetime):
         """Determine the active playlist based on the current time."""
         current_time = current_datetime.strftime("%H:%M")  # Get current time in "HH:MM" format
