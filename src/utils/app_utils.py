@@ -159,7 +159,10 @@ def handle_request_files(request_files, form_data={}):
         if extension in {'jpg', 'jpeg'}:
             try:
                 with Image.open(file) as img:
-                    img = ImageOps.exif_transpose(img)
+                    try:
+                        img = ImageOps.exif_transpose(img)
+                    except ZeroDivisionError:
+                        logger.warning(f"exif_transpose failed for image {file_name}, continuing without transpose.")
                     img.save(file_path)
             except Exception as e:
                 logger.warn(f"EXIF processing error for {file_name}: {e}")

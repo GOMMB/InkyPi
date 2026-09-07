@@ -25,7 +25,10 @@ def grab_image(image_path, dimensions, pad_image):
     """Load an image from disk, auto-orient it, and resize to fit within the specified dimensions, preserving aspect ratio."""
     try:
         img = Image.open(image_path)
-        img = ImageOps.exif_transpose(img)  # Correct orientation using EXIF
+        try:
+            img = ImageOps.exif_transpose(img)  # Correct orientation using EXIF
+        except ZeroDivisionError:
+            logger.warning(f"exif_transpose failed for image from {image_path}, continuing without transpose.")
         img = ImageOps.contain(img, dimensions, Image.LANCZOS)
 
         if pad_image:
