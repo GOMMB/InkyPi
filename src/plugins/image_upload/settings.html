@@ -238,8 +238,8 @@
                 },
                 body: JSON.stringify({
                     playlist_name: '{{ playlist.name }}',
-                    plugin_id: '{{ plugin_instance.plugin_id }}',
-                    plugin_instance: '{{ plugin_instance.name }}',
+                    plugin_id: '{{ plugin_instance_id }}',
+                    plugin_instance: '{{ plugin_instance }}',
                     plugin_options: {'image_index': imageIdx}
                 })
             });

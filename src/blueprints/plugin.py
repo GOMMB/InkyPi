@@ -43,6 +43,7 @@ def plugin_page(plugin_id):
                 template_params["plugin_settings"] = plugin_instance.settings
                 template_params["plugin_instance"] = plugin_instance_name
                 template_params["plugin_refresh"] = plugin_instance.refresh
+                template_params["plugin_instance_id"] = plugin_id
                 template_params["playlist"] = playlist
 
             template_params["playlists"] = playlist_manager.get_playlist_names()
