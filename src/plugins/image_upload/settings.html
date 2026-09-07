@@ -228,7 +228,7 @@
     window.uploadedFiles = window.uploadedFiles || {};
 
     async function displayImageNow(imageIdx) {
-        const loadingIndicator = document.getElementById(pluginInstance)?.querySelector('.loading-indicator');
+        const loadingIndicator = document.getElementById('loadingIndicator');
         loadingIndicator.style.display = 'block';
         try {
             const response = await fetch("{{ url_for('plugin.display_plugin_instance') }}", {
