@@ -1,253 +1,78 @@
-from flask import Blueprint, request, jsonify, current_app, render_template, send_from_directory
-from plugins.plugin_registry import get_plugin_instance
-from utils.app_utils import resolve_path, handle_request_files, parse_form
-from refresh_task import ManualRefresh, PlaylistRefresh
-import json
-import os
-import logging
-
-logger = logging.getLogger(__name__)
-plugin_bp = Blueprint("plugin", __name__)
-
-# Removed module-level PLUGINS_DIR - will resolve dynamically in route handlers
-
-def __attempt_to_remove_file(full_path):
-    try:
-        os.remove(full_path)
-    except OSError as _:
-        pass
-
-@plugin_bp.route('/plugin/<plugin_id>')
-def plugin_page(plugin_id):
-    device_config = current_app.config['DEVICE_CONFIG']
-    playlist_manager = device_config.get_playlist_manager()
-
-    # Find the plugin by id
-    plugin_config = device_config.get_plugin(plugin_id)
-    if plugin_config:
-        try:
-            plugin = get_plugin_instance(plugin_config)
-            template_params = plugin.generate_settings_template()
-
-            template_params["device_settings"] = device_config.get_config()
-
-            # retrieve plugin instance from the query parameters if updating existing plugin instance
-            plugin_instance_name = request.args.get('instance')
-            if plugin_instance_name:
-                plugin_instance = playlist_manager.find_plugin(plugin_id, plugin_instance_name)
-                if not plugin_instance:
-                    return jsonify({"error": f"Plugin instance: {plugin_instance_name} does not exist"}), 500
-
-                # add plugin instance settings to the template to prepopulate
-                template_params["plugin_settings"] = plugin_instance.settings
-                template_params["plugin_instance"] = plugin_instance_name
-                template_params["plugin_refresh"] = plugin_instance.refresh
-
-            template_params["playlists"] = playlist_manager.get_playlist_names()
-        except Exception as e:
-            logger.exception("EXCEPTION CAUGHT: " + str(e))
-            return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-        return render_template('plugin.html', plugin=plugin_config, **template_params)
-    else:
-        return "Plugin not found", 404
-
-@plugin_bp.route('/images/<plugin_id>/<path:filename>')
-def image(plugin_id, filename):
-    # Resolve plugins directory dynamically
-    plugins_dir = resolve_path("plugins")
-    
-    # Construct the full path to the plugin's file
-    plugin_dir = os.path.join(plugins_dir, plugin_id)
-    
-    # Security check to prevent directory traversal
-    safe_path = os.path.abspath(os.path.join(plugin_dir, filename))
-    if not safe_path.startswith(os.path.abspath(plugin_dir)):
-        return "Invalid path", 403
-    
-    # Convert to absolute path for send_from_directory
-    abs_plugin_dir = os.path.abspath(plugin_dir)
-    
-    # Check if the directory and file exist
-    if not os.path.isdir(abs_plugin_dir):
-        logger.error(f"Plugin directory not found: {abs_plugin_dir}")
-        return "Plugin directory not found", 404
-        
-    if not os.path.isfile(safe_path):
-        logger.error(f"File not found: {safe_path}")
-        return "File not found", 404
-    
-    # Serve the file from the plugin directory
-    return send_from_directory(abs_plugin_dir, filename)
-
-@plugin_bp.route('/delete_plugin_instance', methods=['POST'])
-def delete_plugin_instance():
-    device_config = current_app.config['DEVICE_CONFIG']
-    playlist_manager = device_config.get_playlist_manager()
-
-    data = request.json
-    playlist_name = data.get("playlist_name")
-    plugin_id = data.get("plugin_id")
-    plugin_instance = data.get("plugin_instance")
-
-    try:
-        playlist = playlist_manager.get_playlist(playlist_name)
-        if not playlist:
-            return jsonify({"success": False, "message": "Playlist not found"}), 400
-
-        result = playlist.delete_plugin(plugin_id, plugin_instance)
-        if not result:
-            return jsonify({"success": False, "message": "Plugin instance not found"}), 400
-
-        # save changes to device config file
-        device_config.write_config()
-
-    except Exception as e:
-        logger.exception("EXCEPTION CAUGHT: " + str(e))
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-    return jsonify({"success": True, "message": "Deleted plugin instance."})
-
-@plugin_bp.route('/update_plugin_instance/<string:instance_name>', methods=['PUT'])
-def update_plugin_instance(instance_name):
-    device_config = current_app.config['DEVICE_CONFIG']
-    playlist_manager = device_config.get_playlist_manager()
-
-    try:
-        form_data = parse_form(request.form)
-
-        if not instance_name:
-            raise RuntimeError("Instance name is required")
-        
-        plugin_id = form_data.get("plugin_id")
-        
-        # Get existing plugin instance to check for duplicate filenames
-        plugin_instance = playlist_manager.find_plugin(plugin_id, instance_name)
-        if not plugin_instance:
-            return jsonify({"error": f"Plugin instance: {instance_name} does not exist"}), 500
-        
-        plugin_settings = form_data
-
-        # For image_upload plugin, check for duplicate filenames
-        if plugin_id == "image_upload":
-            existing_files = plugin_instance.settings.get('imageFiles[]', [])
-            existing_filenames = [os.path.basename(f) for f in existing_files]
-            
-            # Check for duplicates in new uploads
-            duplicates = []
-            for key, file in request.files.items(multi=True):
-                if key == 'imageFiles[]' and file.filename:
-                    filename = os.path.basename(file.filename)
-                    if filename in existing_filenames:
-                        duplicates.append(filename)
-            
-            if duplicates:
-                return jsonify({"error": f"Duplicate files detected: {', '.join(duplicates)}. These files already exist for this instance."}), 400
-
-            # Delete cached images for images where crop settings were updated
-            cache_dir = resolve_path(os.path.join("static", "images", "cached"))
-            if 'cache_to_delete' in plugin_settings:
-                cache_to_delete = json.loads(plugin_settings.pop("cache_to_delete"))
-                for cached_image_name in cache_to_delete:
-                    __attempt_to_remove_file(os.path.join(cache_dir, cached_image_name))
-
-            # If pad option changed, delete all cached images
-            if plugin_instance.settings.get("padImage") != plugin_settings.get("padImage"):
-                for cache_file in os.listdir(cache_dir):
-                    __attempt_to_remove_file(os.path.join(cache_dir, cache_file))
-        plugin_settings.update(handle_request_files(request.files, request.form))
-
-        plugin_id = plugin_settings.pop("plugin_id")
-        
-        # Handle refresh settings if provided
-        refresh_settings_json = plugin_settings.pop("refresh_settings", None)
-        refresh_settings = {}
-        if refresh_settings_json:
-            refresh_settings = json.loads(refresh_settings_json)
-
-        plugin_instance.settings = plugin_settings
-        
-        refresh_settings_changed = False
-
-        # Update refresh settings if provided
-        if refresh_settings and not refresh_settings == plugin_instance.refresh:
-            plugin_instance.refresh = refresh_settings
-            refresh_settings_changed = True
-            
-        device_config.write_config()
-        
-        # Check if this plugin instance is currently active and trigger refresh
-        refresh_info = device_config.get_refresh_info()
-        if (refresh_info.refresh_type == "Playlist" and 
-            refresh_info.plugin_id == plugin_id and 
-            refresh_info.plugin_instance == instance_name and
-            refresh_settings_changed):
-            
-            refresh_task = current_app.config['REFRESH_TASK']
-            from refresh_task import PlaylistRefresh
-            
-            # Find the playlist containing this plugin
-            for playlist in playlist_manager.playlists:
-                if playlist.find_plugin(plugin_id, instance_name):
-                    refresh_task.manual_update(PlaylistRefresh(playlist, plugin_instance, force=True))
-                    break
-                    
-    except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-    return jsonify({"success": True, "message": f"Updated plugin instance {instance_name}."})
-
-@plugin_bp.route('/display_plugin_instance', methods=['POST'])
-def display_plugin_instance():
-    device_config = current_app.config['DEVICE_CONFIG']
-    refresh_task = current_app.config['REFRESH_TASK']
-    playlist_manager = device_config.get_playlist_manager()
-
-    data = request.json
-    playlist_name = data.get("playlist_name")
-    plugin_id = data.get("plugin_id")
-    plugin_instance_name = data.get("plugin_instance")
-
-    try:
-        playlist = playlist_manager.get_playlist(playlist_name)
-        if not playlist:
-            return jsonify({"success": False, "message": f"Playlist {playlist_name} not found"}), 400
-
-        plugin_instance = playlist.find_plugin(plugin_id, plugin_instance_name)
-        if not plugin_instance:
-            return jsonify({"success": False, "message": f"Plugin instance '{plugin_instance_name}' not found"}), 400
-
-        refresh_task.manual_update(PlaylistRefresh(playlist, plugin_instance, force=True))
-    except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-    return jsonify({"success": True, "message": "Display updated"}), 200
-
-@plugin_bp.route('/update_now', methods=['POST'])
-def update_now():
-    device_config = current_app.config['DEVICE_CONFIG']
-    refresh_task = current_app.config['REFRESH_TASK']
-    display_manager = current_app.config['DISPLAY_MANAGER']
-
-    try:
-        plugin_settings = parse_form(request.form)
-        plugin_settings.update(handle_request_files(request.files))
-        plugin_id = plugin_settings.pop("plugin_id")
-
-        # Check if refresh task is running
-        if refresh_task.running:
-            refresh_task.manual_update(ManualRefresh(plugin_id, plugin_settings))
-        else:
-            # In development mode, directly update the display
-            logger.info("Refresh task not running, updating display directly")
-            plugin_config = device_config.get_plugin(plugin_id)
-            if not plugin_config:
-                return jsonify({"error": f"Plugin '{plugin_id}' not found"}), 404
-                
-            plugin = get_plugin_instance(plugin_config)
-            image = plugin.generate_image(plugin_settings, device_config)
-            display_manager.display_image(image, image_settings=plugin_config.get("image_settings", []))
-            
-    except Exception as e:
-        logger.exception(f"Error in update_now: {str(e)}")
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-    return jsonify({"success": True, "message": "Display updated"}), 200
+*** Begin Patch
+*** Update File: src/blueprints/plugin.py
+@@
+ @plugin_bp.route('/display_plugin_instance', methods=['POST'])
+ def display_plugin_instance():
+     device_config = current_app.config['DEVICE_CONFIG']
+     refresh_task = current_app.config['REFRESH_TASK']
+     playlist_manager = device_config.get_playlist_manager()
+ 
+     data = request.json
+     playlist_name = data.get("playlist_name")
+     plugin_id = data.get("plugin_id")
+     plugin_instance_name = data.get("plugin_instance")
++    image_index = data.get("image_index", None)
+ 
+     try:
+-        playlist = playlist_manager.get_playlist(playlist_name)
+-        if not playlist:
+-            return jsonify({"success": False, "message": f"Playlist {playlist_name} not found"}), 400
+-
+-        plugin_instance = playlist.find_plugin(plugin_id, plugin_instance_name)
+-        if not plugin_instance:
+-            return jsonify({"success": False, "message": f"Plugin instance '{plugin_instance_name}' not found"}), 400
+-
+-        refresh_task.manual_update(PlaylistRefresh(playlist, plugin_instance, force=True))
++        # If playlist_name provided, use it. Otherwise search across playlists for the plugin instance.
++        playlist = None
++        plugin_instance = None
++        if playlist_name:
++            playlist = playlist_manager.get_playlist(playlist_name)
++            if not playlist:
++                return jsonify({"success": False, "message": f"Playlist {playlist_name} not found"}), 400
++            plugin_instance = playlist.find_plugin(plugin_id, plugin_instance_name)
++            if not plugin_instance:
++                return jsonify({"success": False, "message": f"Plugin instance '{plugin_instance_name}' not found in playlist {playlist_name}"}), 400
++        else:
++            # search playlists for the plugin instance
++            for pl in playlist_manager.playlists:
++                pi = pl.find_plugin(plugin_id, plugin_instance_name)
++                if pi:
++                    playlist = pl
++                    plugin_instance = pi
++                    break
++            if not plugin_instance:
++                return jsonify({"success": False, "message": f"Plugin instance '{plugin_instance_name}' not found in any playlist"}), 400
++
++        # Load plugin config and instance plugin class
++        plugin_config = device_config.get_plugin(plugin_id)
++        if not plugin_config:
++            return jsonify({"success": False, "message": f"Plugin '{plugin_id}' not found"}), 404
++
++        plugin = get_plugin_instance(plugin_config)
++
++        # Use a copy of the plugin_instance settings so we do not persist the image_index override
++        temp_settings = dict(plugin_instance.settings) if plugin_instance.settings else {}
++        if image_index is not None:
++            try:
++                temp_settings['image_index'] = int(image_index)
++            except Exception:
++                temp_settings['image_index'] = 0
++
++        # Perform the same work PlaylistRefresh.execute does: generate image, save it to plugin image path,
++        # update latest_refresh_time and write config, and display the image.
++        plugin_image_path = os.path.join(device_config.plugin_image_dir, plugin_instance.get_image_path())
++        os.makedirs(os.path.dirname(plugin_image_path), exist_ok=True)
++
++        from datetime import datetime
++        current_dt = datetime.now()
++        image = plugin.generate_image(temp_settings, device_config)
++        image.save(plugin_image_path)
++        plugin_instance.latest_refresh_time = current_dt.isoformat()
++        device_config.write_config()
++
++        # Display the image via the display manager
++        display_manager = current_app.config.get('DISPLAY_MANAGER')
++        if display_manager:
++            display_manager.display_image(image, image_settings=plugin_config.get("image_settings", []))
+*** End Patch
