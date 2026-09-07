@@ -51,7 +51,7 @@ To install InkyPi, follow these steps:
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/fatihak/InkyPi.git
+    git clone https://github.com/GOMMB/InkyPi.git
     ```
 2. Navigate to the project directory:
     ```bash
