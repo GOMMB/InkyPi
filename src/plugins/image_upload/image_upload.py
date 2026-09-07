@@ -98,6 +98,6 @@ class ImageUpload(BasePlugin):
         image = resize_image(image, device_config.get_resolution(), [])
 
         # Save to cache
-        image.save(self.__get_cache_location(image_locations[current_index]))
+        image.save(self.__get_cache_location(image_locations[img_index]))
 
         return image
