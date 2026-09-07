@@ -240,14 +240,13 @@
                     playlist_name: '{{ playlist.name }}',
                     plugin_id: '{{ plugin_instance_id }}',
                     plugin_instance: '{{ plugin_instance }}',
-                    plugin_options: {'image_index': imageIdx}
+                    temp_plugin_options: {'image_index': imageIdx}
                 })
             });
             
             const result = await response.json();
             if (response.ok) {
                 sessionStorage.setItem("storedMessage", JSON.stringify({ type: "success", text: `Success! ${result.message}` }));
-                location.reload();
             } else {
                 showResponseModal('failure', `Error!  ${result.error}`);
             }
