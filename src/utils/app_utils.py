@@ -5,6 +5,7 @@ import subprocess
 
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+from pillow_heif import register_heif_opener
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +133,7 @@ def parse_form(request_form):
     return request_dict
 
 def handle_request_files(request_files, form_data={}):
-    allowed_file_extensions = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'}
+    allowed_file_extensions = {'pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'}
     file_location_map = {}
     # handle existing file locations being provided as part of the form data
     for key in set(request_files.keys()):
@@ -167,8 +168,13 @@ def handle_request_files(request_files, form_data={}):
             except Exception as e:
                 logger.warn(f"EXIF processing error for {file_name}: {e}")
                 file.save(file_path)
+        elif extension == 'heic':
+            with Image.open(file) as img:
+                img = img.convert("RGB")
+                file_path = os.path.splitext(file_path)[0] + ".jpg"
+                img.save(file_path, "JPEG", quality=95)
         else:
-            # Directly save non-JPEG files
+            # Directly save non-JPEG/HEIC files
             file.save(file_path)
 
         if is_list:
