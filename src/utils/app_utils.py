@@ -9,6 +9,8 @@ from pillow_heif import register_heif_opener
 
 logger = logging.getLogger(__name__)
 
+register_heif_opener()
+
 FONT_FAMILIES = {
     "Dogica": [{
         "font-weight": "normal",
